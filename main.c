@@ -6,73 +6,87 @@
 /*   By: egervais <egervais@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2023/05/18 14:53:59 by egervais          #+#    #+#             */
-/*   Updated: 2023/05/26 18:02:47 by egervais         ###   ########.fr       */
+/*   Updated: 2023/07/31 21:51:15 by egervais         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
 #include "pipex.h"
 
-void execute(t_pipe *pip, char *path, char **cmd, char **envp)
+static char	*command(char **path, char *cmd)
 {
-    if (execve(path, cmd, envp) == -1)
-        free_all(pip, 1);
-}
-int	open_file(char *name, int check, t_pipe *pip)
-{
-	int	fd;
+	char	*temp;
+	char	*com;
 
-	if (check == 0)
-		fd = open(name, O_RDONLY, 0777);
-	else
-		fd = open(name, O_WRONLY | O_CREAT | O_TRUNC, 0777);
-	if (fd == -1)
-		free_all(pip, 1);
-	return (fd);
-}
-
-void child_process(t_pipe *pip, int *end, char *name, char **envp)
-{
-    int fd;
-    
-    fd = open_file(name, 0, pip);
-    if(dup2(fd, 0) == -1 || dup2(end[1], 1) == -1)
-        free_all(pip, 1);
-    close(end[0]);
-    execute(pip, pip->cmdone, pip->cmd1, envp);
+	if (!cmd)
+		return (NULL);
+	while (*path)
+	{
+		temp = ft_strjoin(*path, "/");
+		com = ft_strjoin(temp, cmd);
+		free(temp);
+		if (!com)
+			return (NULL);
+		if (access(com, 0) == 0)
+			return (com);
+		free(com);
+		path++;
+	}
+	return (NULL);
 }
 
-void parent_process(t_pipe *pip, int *end, char *name, char **envp)
+static void	child(t_pipe *pip, char **envp, char **av)
 {
-    int fd;
-    int status;
-    
-    waitpid(pip->pid, &status, 0);
-    fd = open_file(name, 1, pip);
-    if(dup2(fd, 1) == -1 || dup2(end[0], 0) == -1)
-        free_all(pip, 1);
-    close(end[1]);
-    execute(pip, pip->cmdtwo, pip->cmd2, envp);
+	if (dup2(pip->p[1], 1) < 0)
+		exit(1);
+	close(pip->p[0]);
+	if (dup2(pip->infile, 0) < 0)
+		exit(1);
+	pip->cmd1 = ft_split(av[2], ' ');
+	pip->cmdone = command(pip->path, *pip->cmd1);
+	if (!pip->cmdone)
+		free2(pip->cmd1, pip->cmdone, "invalid command\n");
+	if (execve(pip->cmdone, pip->cmd1, envp) == -1)
+		free2(pip->cmd1, pip->cmdone, "execution failed\n");
 }
 
-int main(int ac, char **av, char **envp)
+static void	parent(t_pipe *pip, char **envp, char **av)
 {
-    t_pipe *pip;
-    int end[2];
-    
-    if(ac != 5)
-        return (write(2, "Not enought arguments\n", 22), 1);
-    if(pipe(end) == -1)
-        return (1);
-    pip = malloc(sizeof(t_pipe));
-    if(!pip)
-        return (write(2, "failed to allocate\n", 19), 1);
-    pip->cmdtwo = NULL;
-    if(init_struct(pip, av, envp) || check_path(pip->path, pip->cmd1, pip, 0) || check_path(pip->path, pip->cmd2, pip, 1))
-        free_all(pip, 1);
-    pip->pid = fork();
-    if(pip->pid == -1)
-        return (1);
-    if(!pip->pid)
-        child_process(pip, end, av[1], envp);
-    parent_process(pip, end, av[4], envp);
+	if (dup2(pip->p[0], 0) < 0)
+		exit(1);
+	close(pip->p[1]);
+	if (dup2(pip->outfile, 1) < 0)
+		exit(1);
+	pip->cmd2 = ft_split(av[3], ' ');
+	pip->cmdtwo = command(pip->path, *pip->cmd2);
+	if (!pip->cmdtwo)
+		free2(pip->cmd2, pip->cmdtwo, "invalid command\n");
+	if (execve(pip->cmdtwo, pip->cmd2, envp) == -1)
+		free2(pip->cmd2, pip->cmdtwo, "execution failed\n");
+}
+
+int	main(int ac, char **av, char **envp)
+{
+	t_pipe	*pip;
+
+	if (ac != 5)
+		return (write(2, "Not enought arguments\n", 22), 1);
+	pip = malloc(sizeof(t_pipe));
+	if (!pip)
+		return (write(2, "failed to allocate\n", 19), 1);
+	pip->cmdtwo = NULL;
+	if (init_struct(pip, av, envp, ac) || pipe(pip->p) == -1)
+		freee2(pip);
+	pip->pid = fork();
+	if (pip->pid == -1)
+		freee(pip);
+	if (!pip->pid)
+		child(pip, envp, av);
+	pip->pid2 = fork();
+	if (!pip->pid2)
+		parent(pip, envp, av);
+	close(pip->p[0]);
+	close(pip->p[1]);
+	waitpid(pip->pid, NULL, 0);
+	waitpid(pip->pid2, NULL, 0);
+	freee(pip);
 }
