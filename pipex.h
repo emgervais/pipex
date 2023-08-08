@@ -6,7 +6,7 @@
 /*   By: egervais <egervais@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2023/05/18 14:54:47 by egervais          #+#    #+#             */
-/*   Updated: 2023/07/31 21:51:28 by egervais         ###   ########.fr       */
+/*   Updated: 2023/08/05 14:11:01 by egervais         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -40,7 +40,7 @@ int			ft_strlen(const char *str);
 int			check_path(char **paths, char **cmd, t_pipe *pip, int check);
 void		freee(t_pipe *pip);
 void		freee2(t_pipe *pip);
-void		free2(char **cmd, char *line, char *err);
+void		free2(char **cmd, char *line, t_pipe *pip, char *err);
 int			init_struct(t_pipe *pip, char **av, char **envp, int ac);
 
 #endif
